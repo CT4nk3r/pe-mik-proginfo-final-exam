@@ -797,4 +797,306 @@ Megengedjük a holtpont kialakulását, de időközönként ellenőrizzük a ren
     *   *Folyamat megszüntetése:* Minden érintett folyamat kilövése, vagy egyesével, amíg a kör megszűnik [12].
     *   *Erőforrás elvétele (Preemption):* Erőforrás erőszakos elvétele és a folyamat visszagörgetése (rollback) egy korábbi állapotba [13].
 
-    
+# 6. Tétel: A tárkezelés korszerű módszerei (Memóriakezelés)
+
+Ez a tétel a számítógép operatív memóriájának (RAM) kezelését, a logikai és fizikai címek leképezését, valamint a modern rendszerekben használt virtuális tárkezelési technikákat (lapozás, szegmentálás) foglalja össze.
+
+## 1. Alapfogalmak
+*   **Logikai vs. Fizikai cím:**
+    *   *Logikai (virtuális) cím:* A CPU által generált cím, amellyel a futó folyamat hivatkozik a memóriára.
+    *   *Fizikai cím:* A valós memóriaegység által kezelt cím.
+    *   **MMU (Memory Management Unit):** Hardvereszköz, amely futás közben végzi a logikai címek fizikai címekké való átalakítását (címleképzés) [1], [2].
+*   **Címkötés:** Az a folyamat, amikor a program utasításaihoz és adataihoz konkrét memóriacímeket rendelünk. Modern rendszerekben ez **dinamikusan**, futás közben történik [3].
+
+## 2. Memória-kiosztási stratégiák
+A többprogramos rendszerekben a memóriát fel kell osztani az operációs rendszer és a futó folyamatok között.
+*   **Folytonos tárkiosztás:** A folyamat egyetlen, összefüggő memóriaterületet kap.
+    *   *Probléma:* **Külső tördelődés (fragmentáció)**. A szabad memória apró, nem összefüggő lyukakra szakad, amelyekbe már nem fér be egy új folyamat, hiába lenne összesen elég hely [4].
+    *   *Megoldás:* Tömörítés (lassú) vagy nem folytonos módszerek [5].
+*   **Swapping (Tárcsere):** Ha a memória betelt, az operációs rendszer a teljes inaktív folyamatot (vagy annak részeit) kiírja a háttértárra, hogy helyet szabadítson fel. A visszatöltéskor akár máshova is kerülhet a memóriában [6].
+
+## 3. Nem folytonos tárkezelés
+A modern rendszerek nem követelik meg, hogy a program egy darabban legyen a memóriában.
+*   **Szegmentálás:** A programot logikai egységekre (szegmensekre) bontjuk (pl. főprogram, verem, adatok, szimbólumtábla).
+    *   Minden szegmensnek saját hossza és védelmi jogai lehetnek (pl. csak olvasható kód) [7], [8].
+    *   *Hátránya:* Még mindig okozhat külső tördelődést [9].
+*   **Lapozás (Paging):** A fizikai memóriát fix méretű blokkokra (**keretek** / frames), a logikai címteret ugyanakkora méretű **lapokra** (pages) osztjuk (pl. 4 KB).
+    *   **Laptábla:** Nyilvántartja, hogy melyik logikai lap melyik fizikai keretben található [10].
+    *   *Előny:* Megszünteti a külső tördelődést (bárhova betölthető egy lap).
+    *   *Hátrány:* **Belső tördelődés** léphet fel (az utolsó lap általában nincs tele) [11].
+*   **TLB (Translation Look-aside Buffer):** Egy gyors elérésű asszociatív gyorsítótár a processzorban, amely a legutóbbi címfordításokat tárolja, így nem kell mindig a memóriában lévő laptáblához fordulni [12].
+
+## 4. Virtuális tárkezelés
+Lehetővé teszi, hogy a programok mérete nagyobb legyen, mint a rendelkezésre álló fizikai memória.
+*   **Elv:** Csak az éppen végrehajtás alatt álló programrészeknek (lapoknak) kell a memóriában lenniük, a többi a háttértáron maradhat [13].
+*   **Laphiba (Page Fault):** Ha a folyamat olyan lapra hivatkozik, amely nincs a fizikai memóriában (az érvényességi bit 0), a hardver megszakítást generál. Az OS ekkor betölti a hiányzó lapot a háttértárról egy szabad keretbe (igény szerinti lapozás) [1].
+*   **Vergődés (Thrashing):** Ha a rendszerben túl sok folyamat fut, és nincs elég memória a **munkahalmazuk** (az éppen gyakran használt lapok) tárolására, a rendszer folyamatosan csak lapoz (ki-be töltögeti az adatokat), és a hasznos teljesítmény drasztikusan lecsökken [14], [15].
+
+## 5. Lapcsere stratégiák
+Ha laphiba történik, de nincs szabad keret, az OS-nek választania kell egy lapot, amit eltávolít (swap out).
+*   **FIFO (First-In, First-Out):** A legrégebben bent lévő lapot dobja ki. Hibája a *Bélády-anomália*: a memóriaméret növelésével néha nő a laphibák száma [16].
+*   **OPT (Optimális):** Azt a lapot dobja ki, amelyre a legtovább nem lesz szükség. A gyakorlatban megvalósíthatatlan (nem látunk a jövőbe), de összehasonlítási alapnak jó [17].
+*   **LRU (Least Recently Used):** A legrégebben *használt* lapot cseréli le. A lokalitás elve alapján ez valószínűleg a közeljövőben sem kell. Jól működik, de drága az implementációja [18].
+*   **Clock (Óra) / Second Chance:** A FIFO javított, közelítő LRU változata. Ha egy lapot használtak (referencia bit = 1), kap egy második esélyt: a bitet 0-ra állítjuk és a sor végére rakjuk, nem dobjuk ki azonnal [19].
+
+# 7. Tétel: Háttértárak és kezelésük, Állománykezelés
+
+Ez a tétel az adattároló eszközök (HDD, SSD) működését, a lemezműveletek optimalizálását (ütemezés, RAID), valamint az operációs rendszer fájlrendszerének logikai felépítését tárgyalja.
+
+## 1. Háttértárak és a Merevlemez (HDD) felépítése
+A háttértárak feladata az adatok tartós tárolása, mivel a központi tár (RAM) kapacitása korlátozott és tartalma kikapcsoláskor elvész [1].
+*   **Fizikai szervezés:**
+    *   **Sáv (Track):** A lemezterület azon gyűrű alakú része, amelyet a fej elmozdulás nélkül elér egy fordulat alatt [2].
+    *   **Cilinder:** Az egymás alatt elhelyezkedő sávok összessége (több lemeztányér esetén) [2].
+    *   **Szektor:** A sávok azonos méretű blokkokra osztott részei. Ez az információátvitel legkisebb egysége [2].
+*   **Időzítési tényezők:** A leglassabb művelet a **fejmozgás** (seek time), ezt követi az elfordulási idő (latency), majd az adatátvitel [3], [4].
+
+## 2. Lemezműveletek ütemezése
+Mivel a fejmozgás lassú, az operációs rendszer ütemezi a kéréseket a teljesítmény növelése érdekében [5].
+*   **FCFS (First Come First Served):** Érkezési sorrendben szolgál ki. Egyszerű, de lassú (nagy fejmozgás) [6].
+*   **SSTF (Shortest Seek Time First):** Azt a kérést választja, amely a legközelebb van a fej jelenlegi pozíciójához. Hatékony, de a szélső cilinderekre vonatkozó kérések "éhezhetnek" [6].
+*   **SCAN (Pásztázó):** A fej végigpásztázza a lemezt egyik irányba, kiszolgálva az útjába eső kéréseket, majd a végén irányt vált (mint egy lift) [7].
+*   **C-SCAN (Circular SCAN):** Csak egy irányban szolgál ki. A lemez végére érve a fej visszaugrik az elejére (visszaút közben nem olvas), így egyenletesebb a válaszidő [8].
+
+## 3. RAID rendszerek (Redundant Array of Independent Disks)
+Több lemez összekapcsolása a sebesség és/vagy az adatbiztonság növelése érdekében [9].
+*   **RAID 0 (Striping):** Az adatokat szétosztja a lemezek között.
+    *   *Előny:* Nagy sebesség.
+    *   *Hátrány:* Nincs redundancia, egy lemez hibája adatvesztést okoz [10].
+*   **RAID 1 (Tükrözés):** Minden adatot két lemezre ír fel.
+    *   *Előny:* Nagy biztonság.
+    *   *Hátrány:* Dupla tárhelyigény, a sebesség nem nő [11].
+*   **RAID 5:** Az adatokat és a hibajavító paritást elosztva tárolja az összes lemezen.
+    *   *Előny:* Jó sebesség és tárhely-kihasználás, egy lemez kiesését elviseli [12].
+
+## 4. Állományok kezelése (Fájlrendszerek)
+Az állomány (fájl) a felhasználó által összetartozónak ítélt információk gyűjteménye, amelyet névvel azonosítunk [13].
+*   **Könyvtárak (Directory):** Az állományok csoportosítására szolgálnak, hierarchikus (fa) szerkezetet alkotnak [14].
+
+### Tárterület allokáció (Lemezen való tárolás)
+Hogyan rendeljük a fájlokhoz a lemezblokkokat?
+1.  **Folytonos:** Egymás utáni blokkokban. Gyors olvasás, de töredezettséget okoz (külső fragmentáció), és a fájlméret növelése nehéz [15].
+2.  **Láncolt (pl. FAT):** A blokkok szétszórva lehetnek, minden blokk (vagy egy tábla, mint a FAT) tartalmazza a következő blokk címét. Nincs töredezettség, könnyű növelni, de a véletlen elérés lassú [16], [17].
+3.  **Indexelt (pl. I-node):** Egy indexblokk tartalmazza a fájlhoz tartozó összes adatblokk címét. Támogatja a közvetlen hozzáférést és a nagy fájlokat is [17].
+
+### Szabad helyek nyilvántartása
+*   **Bittérkép:** Minden blokkhoz 1 bit tartozik (0=foglalt, 1=szabad). Könnyű szabad helyet találni, de memóriaigényes [18].
+*   **Láncolt lista:** A szabad blokkokat láncba fűzzük [18].
+
+## 5. Elosztott állománykezelés
+Célja, hogy a hálózaton lévő távoli fájlokat úgy érjük el, mintha helyiek lennének (pl. NFS) [19].
+*   **Transzparencia:** A felhasználó nem tudja, hol van fizikailag a fájl (név szerinti és hely szerinti átlátszóság) [20], [21].
+*   **Megvalósítás:**
+    *   **Távoli eljáráshívás (RPC):** A műveletet a szerver végzi el.
+    *   **Caching (Helyi átmeneti tár):** A fájlt (vagy részét) átmásoljuk a kliensre, ott végezzük a műveletet, majd visszírjuk. Gyorsabb, de konzisztencia-problémákat okozhat (mi van, ha ketten írják egyszerre?) [22].
+
+# 7. Tétel: Számítógép-hálózatok: A fizikai és az adatkapcsolati réteg
+
+Ez a tétel az OSI-modell alsó két rétegét, az átviteli közegeket, a topológiákat és a helyi hálózati kapcsolást (switching) tárgyalja.
+
+## 1. Az OSI-modell (Open Systems Interconnection)
+Egy 7 rétegből álló referencia-modell, amely a hálózati kommunikációt írja le. Célja a különböző rendszerek közötti átjárhatóság biztosítása szabványos protokollokkal [1].
+*   **Rétegek (lentről felfelé):** 1. Fizikai, 2. Adatkapcsolati, 3. Hálózati, 4. Szállítási, 5. Viszony, 6. Megjelenítési, 7. Alkalmazási [1].
+
+## 2. Fizikai réteg (1. réteg)
+Feladata a bitek (adat) fizikai jelekké alakítása és továbbítása a közegen keresztül [2].
+*   **Adategység:** Bit [2].
+
+### Átviteli közegek
+1.  **Vezetékes:**
+    *   **Csavart érpár (Twisted Pair):** A leggyakoribb. Lehet árnyékolatlan (**UTP**) vagy árnyékolt (**STP**). A vezetékek csavarása csökkenti az interferenciát [3]. RJ-45 csatlakozót használnak [3].
+    *   **Koaxiális kábel:** Rézvezető, szigetelés és rézfonat (árnyékolás) alkotja [4].
+    *   **Optikai kábel:** Üvegszálon fényimpulzusokkal továbbítja az adatot. Nagy sávszélességű és nagy távolságra alkalmas, érzéketlen az elektromágneses zavarokra [4].
+2.  **Vezeték nélküli (Wireless):** Rádió- vagy mikrohullámokat használ.
+    *   **Wi-Fi (IEEE 802.11):** WLAN hálózatokhoz [5].
+    *   **Bluetooth (IEEE 802.15):** WPAN (személyi) hálózatokhoz [5].
+    *   **WiMAX (IEEE 802.16):** Szélessávú internet-hozzáféréshez [5].
+
+## 3. Adatkapcsolati réteg (2. réteg)
+Feladata a hibamentes adatátvitel biztosítása a szomszédos csomópontok között, az adatok **keretekbe** (frames) szervezése és a fizikai címzés [6].
+*   **Két alrétege van:**
+    *   **LLC (Logical Link Control):** Kapcsolat a felsőbb (hálózati) réteg felé [6].
+    *   **MAC (Media Access Control):** A fizikai közeg elérését és a címzést (MAC-cím) kezeli [7].
+
+### Keret felépítése
+*   **Fejléc:** Címzési és vezérlési információk [7].
+*   **Adatrész:** A felsőbb réteg (pl. IP) csomagja [7].
+*   **Utótag (Trailer):** Hibadetektáló kód (pl. CRC) [7].
+
+## 4. Topológiák
+A hálózati eszközök elrendezése.
+*   **Fizikai topológia:** A kábelezés és az eszközök fizikai elrendezése [8].
+*   **Logikai topológia:** Hogyan áramlik a jel a hálózatban [8].
+
+**Típusai:**
+*   **Pont-pont:** Két végpont közvetlen kapcsolata [9].
+*   **Csillag:** Minden eszköz egy központi ponthoz (switch/hub) kapcsolódik. A leggyakoribb [9].
+*   **Busz:** Minden állomás egy közös kommunikációs vonalra csatlakozik [10].
+*   **Gyűrű:** Az állomások zárt láncot alkotnak, az adat körbejár (vezérjel-továbbítás) [10].
+*   **Hálós (Mesh):** Minden eszköz mindennel (vagy sokkal) össze van kötve a magas rendelkezésre állásért [9].
+
+## 5. MAC-cím és a Switch működése
+*   **MAC-cím (Media Access Control):** 48 bites (6 bájtos), globálisan egyedi fizikai azonosító, amelyet a gyártó "éget" a hálózati kártyába [10], [11]. Helyi hálózaton (LAN) belül ez alapján történik a kézbesítés.
+
+### Adattovábbítás Switch-csel (L2)
+A switch (kapcsoló) a MAC-címek alapján irányítja a forgalmat, és **MAC-címtáblát** épít fel [12]:
+1.  **Tanulás:** Amikor keret érkezik, a switch megjegyzi a *feladó* MAC-címét és azt, hogy melyik porton érkezett [12].
+2.  **Továbbítás:**
+    *   Ha a *cél* MAC-cím benne van a táblában: csak a megfelelő portra továbbítja a keretet [12].
+    *   Ha a *cél* MAC-cím ismeretlen (vagy szórási cím): az összes portra kiküldi (kivéve a bejövőt). Ezt hívják elárasztásnak (flooding) [1].
+
+# 8. Tétel: A hálózati réteg (Network Layer)
+
+Ez a réteg (OSI 3. réteg) felelős a végberendezések közötti logikai címzésért és az útvonalválasztásért a különböző hálózatokon keresztül. Adatai a **csomagok** [1].
+
+## 1. A hálózati réteg feladatai
+*   **Címzés:** Egyedi logikai címek (IP-címek) biztosítása az eszközöknek.
+*   **Útvonalválasztás (Routing):** A legjobb útvonal meghatározása a forrástól a célig.
+*   **Be/Kicsomagolás:** A szállítási rétegtől kapott adatot IP-fejléccel látja el (encapsulation), a célállomáson pedig eltávolítja azt (decapsulation) [1].
+
+## 2. IP-címek struktúrája
+
+### IPv4
+*   **Hossz:** 32 bites bináris szám.
+*   **Formátum:** Pontokkal elválasztott decimális alak (pl. 192.168.10.1). Négy darab 8 bites oktettből áll.
+*   **Részei:** Hálózati rész (Network ID) és Állomás rész (Host ID). Ezek határát az **alhálózati maszk** jelöli ki (ahol a maszk bitje 1, az a hálózati rész) [2].
+
+### IPv6
+*   **Hossz:** 128 bites cím (hatalmas címtartomány).
+*   **Formátum:** Kettőspontokkal elválasztott hexadecimális alak (8 csoport, csoportonként 4 hexa számjegy).
+*   **Rövidítés:** Vezető nullák elhagyhatók, egybefüggő nullás csoportok egyszer `::`-al helyettesíthetők [3].
+*   **Prefix:** A hálózati részt a `/hossz` prefix jelöli (pl. `/64`) [4].
+
+### Címzési típusok
+1.  **Unicast (Egyedi):** Egy feladó, egy címzett.
+2.  **Multicast (Csoportos):** Egy feladó, több címzett (egy csoport).
+3.  **Anycast (Bárki):** Egy feladó, a "legközelebbi" címzett az azonos című csoportból (főleg IPv6) [4].
+
+## 3. Fontos fogalmak
+*   **Alapértelmezett átjáró (Default Gateway):** A router azon interfészének IP-címe, amely a helyi hálózaton van. Ha egy eszköz a saját hálózatán kívülre akar üzenni, ide küldi a csomagot [5].
+*   **Publikus vs. Privát címek:**
+    *   *Publikus:* Egyedi az interneten, a szolgáltató osztja.
+    *   *Privát:* Csak belső hálózatokon használható, az interneten nem routolható.
+    *   *Privát tartományok:*
+        *   **A osztály:** 10.0.0.0 – 10.255.255.255
+        *   **B osztály:** 172.16.0.0 – 172.31.255.255
+        *   **C osztály:** 192.168.0.0 – 192.168.255.255 [5].
+
+## 4. Alhálózatok (Subnetting) és VLSM
+A hálózatot kisebb részekre oszthatjuk az alhálózati maszk módosításával (állomás biteket "kölcsönzünk" a hálózati résznek).
+*   **VLSM (Variable Length Subnet Mask):** Változó hosszúságú alhálózati maszk. Lehetővé teszi, hogy egy hálózaton belül különböző méretű alhálózatokat hozzunk létre (pl. egy 100 fős részlegnek `/25`-ös, egy 2 fős kapcsolatnak `/30`-as maszkot adunk), így hatékonyabb a címkihasználás [6].
+*   *Számítás:* Minden kölcsönvett bit megduplázza az alhálózatok számát és felezi a kiosztható címek számát [7].
+
+## 5. Irányító protokollok (Routing Protocols)
+A routerek ezek segítségével cserélnek információt a hálózat állapotáról és építik fel az irányítótáblát.
+*   **OSPF (Open Shortest Path First):** Kapcsolat-állapot alapú. A legrövidebb utat keresi (sávszélesség alapján), gyorsan reagál a változásokra. Nagy hálózatokban gyakori [8].
+*   **RIP (Routing Information Protocol):** Távolságvektor alapú. Ugrásszámot (hop count) figyel (hány routeren kell átmenni). Egyszerű, de lassabb és korlátozott [9].
+*   **EIGRP:** Cisco által fejlesztett fejlett távolságvektor protokoll [9].
+
+# 9. Tétel: A szállítási réteg (Transport Layer)
+
+Ez a réteg (OSI 4. szint) felelős a végpontok közötti (end-to-end) kommunikációért és az adatok megbízható vagy gyors továbbításáért. Adatai a **szegmensek**.
+
+## 1. A szállítási réteg feladatai
+*   **Szegmentálás:** A felsőbb rétegektől kapott adatokat kisebb egységekre bontja, a vevő oldalon pedig összeállítja azokat [1].
+*   **Multiplexelés:** Portszámok segítségével teszi lehetővé, hogy egyetlen hálózati kapcsolaton több alkalmazás kommunikáljon egyszerre [2].
+*   **Megbízhatóság:** Hibadetektálás és javítás (újraküldés) [1].
+
+## 2. Portok (Portszámok)
+A portok a különböző hálózati szolgáltatásokat és alkalmazásokat azonosítják egy gépen belül.
+*   **Méret:** 16 bites számok ($0 \dots 65535$) [3].
+*   **Példák:**
+    *   FTP: 20/21 (TCP)
+    *   SSH: 22 (TCP)
+    *   DNS: 53 (TCP/UDP)
+    *   HTTP: 80 (TCP) / HTTPS: 443 (TCP) [3].
+
+## 3. TCP (Transmission Control Protocol)
+Kapcsolatorientált, megbízható protokoll. Garantálja, hogy az adatok hiba nélkül, sorrendhelyesen érkezzenek meg [4].
+
+### Kapcsolat felépítése (3-utas kézfogás / 3-way handshake)
+Szinkronizáció a felek között az adatátvitel előtt [5]:
+1.  **SYN:** A kliens küld egy szinkronizációs kérést.
+2.  **SYN-ACK:** A szerver nyugtázza és visszaküldi a saját kérését.
+3.  **ACK:** A kliens nyugtázza a szerver válaszát. Ezzel a kapcsolat létrejött.
+
+### Kapcsolat bontása
+Négy lépésben történik (FIN - ACK, FIN - ACK), mivel a kapcsolat kétirányú, és mindkét felet külön le kell zárni [6].
+
+### Megbízhatóság és Áramlásvezérlés
+*   **Nyugtázás (ACK):** A vevő visszajelzi, mely adatokat kapta meg sikeresen. Ha a nyugta elmarad, a feladó újraküldi az adatot.
+*   **Csúszóablak (Sliding Window):** A vevő jelzi, mennyi adatot képes még fogadni (ablakméret). A feladó csak annyi adatot küldhet nyugtázás nélkül, amennyi az ablakba belefér, így elkerülhető a vevő túlterhelése [7].
+
+## 4. UDP (User Datagram Protocol)
+Kapcsolat nélküli, "best effort" protokoll.
+*   **Jellemzői:** Nem garantálja a megérkezést és a sorrendiséget, nincs kézfogás vagy újraküldés [8].
+*   **Előnye:** Gyors, alacsony késleltetésű, kisebb fejléc (8 bájt vs TCP 20 bájt) [8], [2].
+*   **Alkalmazása:** Valós idejű alkalmazások (VoIP, videó streaming, online játékok), DNS kérések [8].
+
+# 11. Tétel: Az objektumorientált rendszermodellezés
+
+Ez a tétel az OO tervezés folyamatát, a különböző modellezési nézeteket, az UML szabvány legfontosabb diagramjait és a tervezési mintákat tárgyalja.
+
+## 1. Objektumorientált tervezés (OOD) alapjai
+Az objektumorientált tervezés a szoftvert egymással kommunikáló, saját állapottal rendelkező objektumok rendszereként írja le [1].
+*   **OOA (Analízis) vs. OOD (Tervezés):**
+    *   *OOA:* A felhasználói környezet (a problématér) modelljének kidolgozása [2], [3].
+    *   *OOD:* A követelményeket kielégítő szoftverrendszer modelljének kidolgozása [2], [3].
+*   **Jellemzők:** Az objektumok egységbe zárják az adatokat (attribútumok) és a műveleteket (metódusok). Az objektumok üzenetekkel kommunikálnak, és elrejtik belső reprezentációjukat (információrejtés) [4], [5].
+
+## 2. A tervezési folyamat és modelljei
+A rendszert különböző nézőpontokból modellezzük a jobb megértés érdekében [6].
+*   **Kontextus modellek:** A rendszer határait és a környezettel (más rendszerekkel) való kapcsolatát írják le [7], [8].
+*   **Strukturális (Statikus) modellek:** A rendszer felépítését, az osztályokat és azok kapcsolatait ábrázolják [9], [10].
+*   **Viselkedési (Dinamikus) modellek:** A rendszer működését, az objektumok közötti interakciókat és állapotváltozásokat írják le [11], [10].
+
+## 3. UML (Unified Modeling Language) diagramok
+Az UML az OO modellezés *de facto* szabványa [12]. A tétel öt kiemelt diagramtípust tartalmaz:
+
+1.  **Használati eset diagram (Use Case):**
+    *   A rendszer funkcionális követelményeit írja le a felhasználó (aktor) szemszögéből [13].
+    *   Azt mutatja meg, *mit* csinál a rendszer (ellipszisek), és kik az *aktorok* (pálcikaemberek) [14].
+2.  **Osztálydiagram (Class Diagram):**
+    *   A rendszer statikus struktúráját ábrázolja: osztályok, attribútumok, metódusok és a köztük lévő kapcsolatok (asszociáció, öröklés/általánosítás, aggregáció) [15], [16].
+3.  **Szekvencia diagram (Sequence Diagram):**
+    *   Dinamikus modell, amely az objektumok közötti interakciót (üzenetváltásokat) mutatja be időbeli sorrendben [17], [18].
+    *   Az idő fentről lefelé halad [19].
+4.  **Állapotdiagram (Statechart):**
+    *   Egyetlen objektum viselkedését írja le: milyen állapotai lehetnek, és milyen események hatására vált állapotot [20], [21].
+    *   Különösen hasznos valós idejű rendszerek modellezésénél [22].
+5.  **Tevékenységdiagram (Activity Diagram):**
+    *   A munkafolyamatok (workflow) és az üzleti folyamatok lépéseinek, döntési pontjainak és párhuzamos ágainak ábrázolására szolgál [23].
+
+## 4. Tervezési minták (Design Patterns)
+A tervezési minták gyakran előforduló tervezési problémákra adott, bevált, újrafelhasználható megoldási sablonok. A tételhez kapcsolódó fontosabb minták [23]:
+*   **Observer (Megfigyelő):** Egy objektum állapotváltozásáról automatikusan értesít más objektumokat.
+*   **Iterator:** Szekvenciális hozzáférést biztosít egy gyűjtemény elemeihez anélkül, hogy felfedné a belső reprezentációt.
+*   **Decorator:** Dinamikusan új felelősségeket (funkciókat) ad egy objektumhoz.
+*   **Facade (Homlokzat):** Egyszerűsített interfészt biztosít egy komplex alrendszerhez.
+
+# 12. Tétel: A szoftvertesztelés alapfogalmai és módszerei
+
+Ez a tétel a szoftverhibák feltárásának folyamatát, a verifikáció és validáció különbségét, valamint a tesztelési szinteket és technikákat foglalja össze.
+
+## 1. Alapfogalmak: Verifikáció és Validáció (V & V)
+A két fogalom nem ugyanazt jelenti, de együtt biztosítják a bizalmat a szoftver iránt.
+*   **Verifikáció (Ellenőrzés):** „Jó minőségű terméket fejlesztünk?” Azt vizsgálja, hogy a szoftver megfelel-e a specifikációnak és a szabványoknak [1].
+*   **Validáció (Érvényesítés):** „A megfelelő terméket fejlesztjük?” Azt vizsgálja, hogy a szoftver kielégíti-e a felhasználó valós igényeit [1].
+
+## 2. Statikus és Dinamikus technikák
+*   **Statikus vizsgálat (Inspection):** A kód vagy a dokumentáció átvizsgálása futtatás nélkül. Célja a hibák (anomáliák) korai megtalálása. Hatékony, mert egy menetben több hibát is feltárhat, és nem fedik el egymást a hibák [2], [3].
+*   **Dinamikus tesztelés:** A program futtatása tesztadatokkal a viselkedés megfigyelésére. Ez az egyetlen mód a nem-funkcionális követelmények (pl. teljesítmény) és a valós idejű viselkedés ellenőrzésére [4].
+    *   *Megjegyzés:* A tesztelés a hibák **jelenlétét** igazolja, a hibák **hiányát** nem tudja bizonyítani [5].
+
+## 3. Tesztelési módszerek (Doboz-modellek)
+*   **Fekete doboz (Black-box):** A tesztelő nem ismeri a belső működést (a forráskódot), csak a specifikáció alapján, a bemenetek és kimenetek vizsgálatával tesztel. (Pl. Végtesztelés) [6].
+    *   *Partíciós tesztelés:* A bemeneti adatokat ekvivalencia-osztályokra bontják (pl. érvényes, érvénytelen, határértékek), és minden osztályból egy-egy reprezentatív elemet tesztelnek [7].
+*   **Fehér doboz (White-box / Strukturális):** A tesztelő ismeri a forráskódot, és ez alapján tervez teszteket, hogy a program belső szerkezetét (pl. elágazásokat) lefedje [8].
+    *   *Lefedettség:* Mérőszám, amely megadja, hogy a tesztek a kód hány százalékát (kód lefedettség) vagy a döntési ágak hányad részét (döntési lefedettség) érintették [9], [10].
+
+## 4. A tesztelés szintjei
+A fejlesztés előrehaladtával a tesztelés hatóköre bővül (V-modell):
+1.  **Komponens (Unit) teszt:** Egyedi modulok, osztályok vagy függvények izolált tesztelése. Általában a fejlesztő végzi [11].
+2.  **Integrációs teszt:** A már tesztelt komponensek összekapcsolásának és együttműködésének vizsgálata (interfészhibák keresése). Történhet *felülről-lefelé* (top-down) vagy *alulról-felfelé* (bottom-up) [12].
+3.  **Rendszerteszt:** A teljes, integrált rendszer vizsgálata, beleértve a funkcionális és nem-funkcionális (pl. terheléses, stressz) teszteket is [13], [14].
+4.  **Átvételi (Vég-) teszt (Acceptance test):** A megrendelő végzi valós adatokkal, hogy eldöntse, átveszi-e a rendszert [15].
